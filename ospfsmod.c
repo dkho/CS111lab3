@@ -452,8 +452,8 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 * the loop.  For now we do this all the time.
 		 *
 		 * EXERCISE: Your code here */
-		r = 1;		/* Fix me! */
-		break;		/* Fix me! */
+		//r = 1;		/* Fix me! */
+		//break;		/* Fix me! */
 
 		/* Get a pointer to the next entry (od) in the directory.
 		 * The file system interprets the contents of a
@@ -476,6 +476,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 */
 
 		/* EXERCISE: Your code here */
+		
 	}
 
 	// Save the file position and return!
@@ -553,6 +554,11 @@ static uint32_t
 allocate_block(void)
 {
 	/* EXERCISE: Your code here */
+        int i;
+	for(i = 0; i < ospfs_super->os_nblocks; i++){
+	  if(bitvector_test(ospfs_block(2), i) == 0)
+	    return i;
+	}
 	return 0;
 }
 
@@ -572,6 +578,10 @@ static void
 free_block(uint32_t blockno)
 {
 	/* EXERCISE: Your code here */
+        //hell if I know if this will work...  not sure if I'm doing the data access right
+        if(blockno < ospfs_super->os_firstinob) return;
+	bitvector_clear(ospfs_block(2) , blockno);
+	return;
 }
 
 
@@ -845,7 +855,7 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 	// Make sure we don't read past the end of the file!
 	// Change 'count' so we never read past the end of the file.
 	/* EXERCISE: Your code here */
-
+	
 	// Copy the data to user block by block
 	while (amount < count && retval >= 0) {
 		uint32_t blockno = ospfs_inode_blockno(oi, *f_pos);

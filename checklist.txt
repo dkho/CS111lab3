@@ -1,0 +1,9 @@
+ospfs_read - UNFINISHED
+ospfs_dir_readdir - UNFINISHED
+allocate_block / free_block - FINISHED, UNTESTED
+change_size - UNFINISHED
+ospfs_create - UNFINISHED
+ospfs_write - UNFINISHED
+ospfs_link - UNFINISHED
+ospfs_symlink / ospfs_unlink - UNFINISHED
+conditional symlinks - UNFINISHED
