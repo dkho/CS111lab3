@@ -224,6 +224,7 @@ ospfs_inode_data(ospfs_inode_t *oi, uint32_t offset)
  */
 
 // ospfs_mk_linux_inode(sb, ino)
+
 //	Linux's in-memory 'struct inode' structure represents disk
 //	objects (files and directories).  Many file systems have their own
 //	notion of inodes on disk, and for such file systems, Linux's
@@ -452,8 +453,11 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 * the loop.  For now we do this all the time.
 		 *
 		 * EXERCISE: Your code here */
-		//r = 1;		/* Fix me! */
-		//break;		/* Fix me! */
+		 if( f_pos > dir_oi->oi_size ) 
+		 {
+			r = 1;		
+			break;		
+		 }
 
 		/* Get a pointer to the next entry (od) in the directory.
 		 * The file system interprets the contents of a
@@ -476,7 +480,35 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 */
 
 		/* EXERCISE: Your code here */
-		
+
+		// pretty sure direntries should all fit within block, cause they're 128 and block's 1024
+		uint32_t dir_offset = ( f_pos -2 ) * OSPFS_DIRENTRY_SIZE ;
+		od = (struct ospfs_direntry_t*) ospfs_inode_data( dir_oi, dir_offset )  ;	 
+
+		if( od->od_ino != 0 )
+		{
+			entry_oi = ospfs_inode( od->od_ino ) ;
+			unsigned char dtype ;
+
+			switch( entry_oi->oi_ftype )
+			{
+			case OSPFS_FTYPE_REG :
+				dtype = DT_REG ;
+				break ;
+			case OSPFS_FTYPE_DIR :
+				dtype = DT_DIR ;
+				break ;
+			case OSPFS_FTYPE_SYMLINK :
+				dtype = DT_LNK ;
+				break ;
+			default :
+				eprintk( "Error in ospfs_dir_readdir! impropper file type\n" ) ;
+			}
+			ok_so_far = filldir( dirent, od->od_name, f_pos -2, od->od_ino, dtype ) ;	
+		}
+
+		if( ok_so_far )
+			fpos ++ ;
 	}
 
 	// Save the file position and return!
