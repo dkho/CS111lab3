@@ -578,7 +578,6 @@ static void
 free_block(uint32_t blockno)
 {
 	/* EXERCISE: Your code here */
-        //hell if I know if this will work...  not sure if I'm doing the data access right
         if(blockno < ospfs_super->os_firstinob) return;
 	bitvector_clear(ospfs_block(2) , blockno);
 	return;
@@ -617,7 +616,6 @@ free_block(uint32_t blockno)
 static int32_t
 indir2_index(uint32_t b)
 {
-	// Your code here.
 	return -1;
 }
 
