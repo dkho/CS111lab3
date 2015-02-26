@@ -822,7 +822,7 @@ add_block(ospfs_inode_t *oi)
 	for(i = 0; i < 256; i++)
 	  data[i] = 0;
 	
-	oi->oi_size += 1024;
+	oi->oi_size = (n+1)*1024;
 	return 0;
 	//return -EIO; // Replace this line
 }
@@ -905,7 +905,7 @@ remove_block(ospfs_inode_t *oi)
 	  oi->oi_direct[dir] = 0;
 	}
 	
-	oi->oi_size -= 1024;
+	oi->oi_size = (n-1) * 1024;
 	return 0; // Replace this line
 }
 
@@ -954,16 +954,21 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 
 	while (ospfs_size2nblocks(oi->oi_size) < ospfs_size2nblocks(new_size)) {
 	        /* EXERCISE: Your code here */
-		return -EIO; // Replace this line
+	        r = add_block(oi);
+		if(r < 0)
+		  return r;
 	}
 	while (ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(new_size)) {
 	        /* EXERCISE: Your code here */
-		return -EIO; // Replace this line
+	        r = remove_block(oi);
+		if(r < 0)
+		  return r;
 	}
 
 	/* EXERCISE: Make sure you update necessary file meta data
 	             and return the proper value. */
-	return -EIO; // Replace this line
+	oi->oi_size = new_size;
+	return 0; // Replace this line
 }
 
 
