@@ -588,7 +588,8 @@ allocate_block(void)
 	/* EXERCISE: Your code here */
         int i;
 	for(i = 0; i < ospfs_super->os_nblocks; i++){
-	  if(bitvector_test(ospfs_block(2), i) == 0)
+	  if(bitvector_test(ospfs_block(2), i) == 1)
+	    bitvector_clear(ospfs_block[2], i);
 	    return i;
 	}
 	return 0;
@@ -611,7 +612,7 @@ free_block(uint32_t blockno)
 {
 	/* EXERCISE: Your code here */
         if(blockno < ospfs_super->os_firstinob) return;
-	bitvector_clear(ospfs_block(2) , blockno);
+	bitvector_set(ospfs_block(2) , blockno);
 	return;
 }
 
@@ -732,12 +733,98 @@ add_block(ospfs_inode_t *oi)
 {
 	// current number of blocks in file
 	uint32_t n = ospfs_size2nblocks(oi->oi_size);
-
+	unit32_t * data;
+	uint32_t d = 0;
+	int i = 0;
 	// keep track of allocations to free in case of -ENOSPC
 	uint32_t *allocated[2] = { 0, 0 };
 
 	/* EXERCISE: Your code here */
-	return -EIO; // Replace this line
+        int32_t indir2 = indir2_index(n-1);
+	int32_t indir2_new = indir2_index(n);
+
+	int32_t indir = indir_index(n-1);
+	int32_t indir_new = indir_index(n);
+
+	int32_t direct = direct_index(n);
+
+	if(indir2 == -1 && indir2_new == 0){
+	  //allocate new indir2 block
+	 
+	  allocated[0] = allocate_block(); //find new block
+	  if(allocated[0] == 0) //if no space left
+	    return -ENOSPC;
+	  oi->oi_indirect2 = allocated[0];
+	  data = (uint32_t*) ospfs_block(allocated[0]);
+	  for(i = 0; i < 256; i++)
+	    data[i] = 0; //zero out the new block
+	}
+
+	if(indir != indir_new){
+	  //allocate new indir block
+	  allocated[1] = allocate_block(); //allocate new block
+	  if(allocated[1] == 0){ //if no space
+	    if(allocated[0] != 0){ //if allocated new indir2 block
+	      free_block(allocated[0]); //free the block
+	      oi->oi_indirect2 = 0; //reset the pointer
+	      return -ENOSPC;
+	    }
+	    
+	    if(indir_new == 0) //if no indir2 block needed allocate to indirect pointer
+	      oi->oi_indirect = allocated[1]; 
+	    else{ //otherwise follow the  indir2 block and allocate the indir into correct place
+	      data = (uint32_t*) ospfs_block(oi->oi_indirect2);
+	      data[indir_new] = allocated[1];
+	    }
+	  }
+
+	  //zero out block
+	  data = (uint32_t*) ospfs_block(allocated[1]);
+	  for( i = 0; i < 256; i ++)
+	    data[i] = 0;
+	}
+	//TODO Put new allocation for data block here
+	d = allocate_block();
+
+	if(d == 0){ //if no space left
+	  if(allocated[1] != 0){
+	    free_block(allocated[1]);
+	    if(indir_new == 0){
+	      oi->oi_indirect = 0;
+	    }
+	    else{
+	      data=(uint32_t*) ospfs_block(oi->oi_indirect2);
+	      data[indir_new] = 0;
+	    }
+	  }
+
+	  if(allocated[0] != 0){
+	    free-block(allocated[0]);
+	    oi->oi_indirect2 = 0;
+	  }
+	  return -ENOSPC;
+	}
+
+	if(indir2_new == 0){
+	  data = (uint32_t*) ospfs_block(oi->oi_indirect2); //data holds indirect2 block
+	  data = (uint32_t*) ospfs_block(data[indir_new]);  //data holds indirect block
+	  data[direct] = d;
+
+	  
+	} else if(indir_new == 0){
+	  data = (uint32_t*) ospfs_block(oi->oi_indirect);
+	  data[direct] = d;
+	} else{
+	  oi->oi_direct[direct] = d;
+	}
+
+	data = (uint32_t*) ospfs_block(d);
+	for(i = 0; i < 256; i++)
+	  data[i] = 0;
+	
+	oi->oi_size += 1024;
+	return 0;
+	//return -EIO; // Replace this line
 }
 
 

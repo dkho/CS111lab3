@@ -1,7 +1,7 @@
 ospfs_read - UNFINISHED
 ospfs_dir_readdir - UNFINISHED
 allocate_block / free_block - FINISHED, UNTESTED
-change_size - UNFINISHED
+change_size - UNFINISHED , finished add_block and helper functions, working on remove block
 ospfs_create - UNFINISHED
 ospfs_write - UNFINISHED
 ospfs_link - UNFINISHED
