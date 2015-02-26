@@ -855,9 +855,58 @@ remove_block(ospfs_inode_t *oi)
 {
 	// current number of blocks in file
 	uint32_t n = ospfs_size2nblocks(oi->oi_size);
-
+	uint32_t * data;
 	/* EXERCISE: Your code here */
-	return -EIO; // Replace this line
+	int32_t ind2  = indir2_index(n);
+	int32_t ind = indir_index(n);
+	int32_t dir = direct_index(n);
+	//NOTE EIO occurs when we should have an ind/ind2 but there isn't one
+	if(ind2 != -1){
+	  if(oi->oi_indirect2 ==0)
+	    return -EIO;
+	  data = (uint32_t*) ospfs_block(oi->oi_indirect2);
+	  if(data[ind] == 0)
+	    return -EIO;
+	  data = (uint32_t*) ospfs_block(data[ind]);
+	  if(data[dir] == 0)
+	    return -EIO;
+	  free_block(data[dir]);
+	  
+	  data[dir] = 0;
+	  if(dir == 0){ // the block was the only data block in the indirect block
+	    data = (uint32_t*) ospfs_block(oi->oi_indirect2);
+	    free_block(data[ind]);
+	    data[ind] = 0;
+
+	    if(ind == 0){
+	      free_block(oi->oi_indirect2);
+	      oi->oi_indirect2 = 0;
+	    }
+	  }
+	}
+	else if (ind != -1){
+	  if(oi->oi_indirect == 0)
+	    return -EIO;
+	  data = ospfs_block(oi->oi_indirect);
+	  if(data[dir] == 0)
+	    return -EIO;
+	  free_block(data[dir]);
+
+	  data[dir] = 0;
+	  if(dir == 0){
+	    free_block(oi->oi_indirect);
+	    oi->oi_indirect = 0;
+	  }
+	}
+	else {
+	  if(oi->oi_direct[dir] == 0)
+	    return -EIO;
+	  free_block(oi->oi_direct[dir]);
+	  oi->oi_direct[dir] = 0;
+	}
+	
+	oi->oi_size -= 1024;
+	return 0; // Replace this line
 }
 
 
