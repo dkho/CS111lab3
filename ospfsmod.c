@@ -1279,6 +1279,7 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 //	 I'm asusming the kernel does, cause if you look at create, they give us a mode
 //	 so I guess we're completely trusting the rest of the kernel
 //	 TODO: dentry's are just temporary right?? check this
+//	 TODO: what about concurrency? nlinks? grabbing inodes?
 static int
 ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dentry) {
 	/* EXERCISE: Your code here. */
@@ -1350,6 +1351,7 @@ ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dent
 //   3. Initialize the directory entry and inode.
 //
 //   EXERCISE: Complete this function.
+//	 TODO: what about cocurrency?
 
 static int
 ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidata *nd)
@@ -1357,7 +1359,47 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
 	uint32_t entry_ino = 0;
 	/* EXERCISE: Your code here. */
-	//return -EINVAL; // Replace this line
+
+	// first, check the name length
+	if( dentry->d_name.len > OSPFS_MAXNAMELEN )
+		return -ENAMETOOLONG ;
+	
+	// check to see if the file already exists
+	if( find_direntry( dir_oi, dentry->d_name.name, dentry->d_name.len ) )
+		return -EEXIST ;
+
+	// get a new directory entry for our inode and check for error
+	ospfs_direntry_t* new_direntry = create_blank_direntry( dir_oi ) ;
+	if( IS_ERR( new_direntry ) )
+		return PTR_ERR( new_direntry ) ; // will be -ENOSPC or -EIO
+
+	
+	// get a new inode for now: look from low to high for inodes
+	entry_ino = OSPFS_ROOT_INO + 1 ; // root is 1
+	uint32_t max_ino =  ospfs_super->n_inodes ;
+	ospfs_inode_t* new_oi = ospfs_inode( entry_ino ) ; 
+
+	while( entry_ino < max_ino ) 
+	{
+		// if the inode is free, we'll use it
+		if( new_oi->nlink = 0 )
+			break ;
+
+		new_oi += OSPFS_INODESIZE ;
+		entry_ino ++ ;
+	}
+	if( entry_ino >=  max_ino )
+		return -ENOSPC ; // not really, we ran out of inodes TODO: check for better retval
+	
+	// set inode metadata 
+	new_oi->oi_size = 0 ;
+	new_oi->oi_ftype = OSPFS_FTYPE_REG ;
+	new_oi->nlink ++ ;
+	new_oi->oi_mode = mode ;
+
+	//set direntry data
+	new_direntry->od_ino = entry_ino ;
+	strncpy( new_direntry->od_name, dentry->d_name.name, dentry->d_name.len ) ;
 
 	/* Execute this code after your function has successfully created the
 	   file.  Set entry_ino to the created file's inode number before
