@@ -1229,14 +1229,17 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 	// add block if we need to
 	if( dir_pos >= dir_size )
 	{
-		if( add_block( dir_oi ) != 0 )
-			return ERR_PTR(-EINVAL) ;
-		
+		int stat = add_block( dir_oi ) != 0 ; // 0 initializes right? 
+		if( stat == -ENOSPC )
+			return ERR_PTR(-ENOSPC) ;
+		if( stat == -EIO ) 
+			return ERR_PTR(-EIO) ;
+
 		dir_pos += OPFS_DIRENTRY_SIZE ;
 		direntry = (ospfs_direntry_t*) ospfs_block( ospfs_inode_blockno( dir_oi, dir_pos ) ) ;
 	}
 
-	return direntry; // Replace this line
+	return direntry; 
 }
 
 // ospfs_link(src_dentry, dir, dst_dentry
@@ -1267,11 +1270,56 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 //               -EIO          on I/O error.
 //
 //   EXERCISE: Complete this function.
-
+//
+//	 what about if the src doesn't exist? will the rest of the kernel manage that??
+//	 we'd be fucking with not real memory
+//	 -> also, is wether src_dentry is a directory being checked above this level?
+//	 TODO: !!!!!!! MUST -> check if permissions and validity are already handled
+//	 I'm pretty sure this is more kernel code passing us this info, but to be sure
+//	 I'm asusming the kernel does, cause if you look at create, they give us a mode
+//	 so I guess we're completely trusting the rest of the kernel
+//	 TODO: dentry's are just temporary right?? check this
 static int
 ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dentry) {
 	/* EXERCISE: Your code here. */
-	return -EINVAL;
+
+	// first see if the name's too long
+	if( dst_dentry->d_name.len > OSPFS_MAXNAMELEN )
+		return -ENAMETOOLONG ;
+
+	// let's check if the source is in fact a non dir inode
+	ospfs_inode_t* s_oi = ospfs_inode( src_dentry->d_inode->i_ino ) ;
+	if( s_oi == 0 || s_oi->ftype == OSPFS_FTYPE_DIR )
+		return -EINVAL ; // is this the right error code?
+		// maybe this is redundant ^^ TODO (check this)
+
+	
+	// get the target directory's ospfs_inode and check if we got a dir inode back
+	ospfs_inode_t* tar_oi = ospfs_inode( dir->i_ino ) ;
+	if( tar_oi == 0 || tar_oi->ftype != OSPFS_FTYPE_DIR )
+		return -EINVAL ;
+
+	// check to see if the dst_dentry already exists
+	if( find_direntry( tar_oi, dst_dentry->d_name.name, dst_dentry->d_name.len ) )
+		return -EEXIST ;
+
+	// get a new direntry and check return value
+	ospfs_direntry_t* new_direntry = create_blank_direntry( tar_oi ) ;
+	if( IS_ERR( new_direntry ) )
+		return PTR_ERR( new_direntry ) ; // will be -ENOSPC or -EIO
+	
+	// copy the name over
+	strncpy( new_direntry->od_name, dst_direntry->d_name.name, dst_direntry->d_name, len ) ;
+
+	// set the inode
+	new_direntry->od_ino = src_dentry->d_inode->i_ino ;
+	//dst_dentry->d_inode->i_ino = src_dentry->d_inode->i_ino ; 
+		// TODO: see if we really don't need this ^^
+
+	// increment nlinks
+	s_oi->oi_nlinks++ ;
+
+	return 0 ;
 }
 
 // ospfs_create
@@ -1309,7 +1357,7 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 	ospfs_inode_t *dir_oi = ospfs_inode(dir->i_ino);
 	uint32_t entry_ino = 0;
 	/* EXERCISE: Your code here. */
-	return -EINVAL; // Replace this line
+	//return -EINVAL; // Replace this line
 
 	/* Execute this code after your function has successfully created the
 	   file.  Set entry_ino to the created file's inode number before
