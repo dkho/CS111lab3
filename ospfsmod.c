@@ -1034,6 +1034,9 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 	// Make sure we don't read past the end of the file!
 	// Change 'count' so we never read past the end of the file.
 	/* EXERCISE: Your code here */
+
+	if( f_pos + count > oi->oi_size )
+		count = ( oi->oi_size - *f_pos ) ;	
 	
 	// Copy the data to user block by block
 	while (amount < count && retval >= 0) {
@@ -1054,8 +1057,12 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 		// into user space.
 		// Use variable 'n' to track number of bytes moved.
 		/* EXERCISE: Your code here */
-		retval = -EIO; // Replace these lines
-		goto done;
+		
+		// n = (left_to_read < left_in_blk)? left_to_read : left_in_blk
+		size_t ltr = count - amount ;
+		n = (ltr < OSPFS_BLKSIZE )? ltr : OSPFS_BLKSIZE ;
+
+		retval = copy_to_user( buffer , data , n ) ;
 
 		buffer += n;
 		amount += n;
@@ -1098,6 +1105,8 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	// If the user is writing past the end of the file, change the file's
 	// size to accomodate the request.  (Use change_size().)
 	/* EXERCISE: Your code here */
+	if( f_pos + count > oi->oi_size )
+		retval = change_size( oi, f_pos + count ) ;
 
 	// Copy data block by block
 	while (amount < count && retval >= 0) {
@@ -1117,8 +1126,8 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 		// read user space.
 		// Keep track of the number of bytes moved in 'n'.
 		/* EXERCISE: Your code here */
-		retval = -EIO; // Replace these lines
-		goto done;
+		n = ( count - amount < OSPFS_BLKSIZE )? count - amount : OSPFS_BLKSIZE ;
+		ret_val = copy_from_user( data, buffer, n ) ;
 
 		buffer += n;
 		amount += n;
@@ -1195,9 +1204,39 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 	// 2. If there's no empty entries, add a block to the directory.
 	//    Use ERR_PTR if this fails; otherwise, clear out all the directory
 	//    entries and return one of them.
+	
+	uint32_t dir_pos = 0 ; 
+	ospfs_direntry_t* direntry = 
+		(ospfs_direntry_t*) ospfs_block( ospfs_inode_blockno( dir_oi, dir_pos ) ) ;
 
-	/* EXERCISE: Your code here. */
-	return ERR_PTR(-EINVAL); // Replace this line
+	uint32_t dir_size = dir_oi->oi_size ;
+	while( dir_pos < dir_size )
+	{
+		// check if this direntry's free
+		if( direntry->od_ino == 0 )
+			break ;
+
+		// update file pos
+		dir_pos += OSPFS_DIRENTRY_SIZE ;
+
+		// update pointer pos
+		if( dir_pos > OSPFS_BLK_SIZE )
+			 direntry = (ospfs_direntry_t*) ospfs_block( ospfs_inode_blockno( dir_oi, dir_pos ));
+		else
+			direntry += OSPFS_DIRENTRY_SIZE ;
+	}
+
+	// add block if we need to
+	if( dir_pos >= dir_size )
+	{
+		if( add_block( dir_oi ) != 0 )
+			return ERR_PTR(-EINVAL) ;
+		
+		dir_pos += OPFS_DIRENTRY_SIZE ;
+		direntry = (ospfs_direntry_t*) ospfs_block( ospfs_inode_blockno( dir_oi, dir_pos ) ) ;
+	}
+
+	return direntry; // Replace this line
 }
 
 // ospfs_link(src_dentry, dir, dst_dentry
