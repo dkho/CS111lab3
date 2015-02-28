@@ -1443,7 +1443,52 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 	uint32_t entry_ino = 0;
 
 	/* EXERCISE: Your code here. */
-	return -EINVAL;
+	size_t symlink_len ;
+
+	// first, check the name length of the dentry and symlink
+	if( dentry->d_name.len > OSPFS_MAXNAMELEN ) 
+		return -ENAMETOOLONG ;
+
+	symlink_len = strlen( symname ) ;
+	if( symlink_len < OSPFS_MAXSYMLINKLEN )
+		return -ENAMETOOLONG ;
+
+	// check to see if the file already exists
+	if( find_direntry( dir_oi, dentry->d_name.name, dentry->d_name.len ) )
+		return -EEXIST ;
+
+	// get a new directory entry for our inode and check for error
+	ospfs_direntry_t* new_direntry = create_blank_direntry( dir_oi ) ;
+	if( IS_ERR( new_direntry ) )
+		return PTR_ERR( new_direntry ) ; // will be -ENOSPC or -EIO
+
+	// get a new inode for now: look from low to high for inodes
+	entry_ino = OSPFS_ROOT_INO + 1 ; // root is 1
+	ospfs_inode_t* new_oi = ospfs_inode( entry_ino ) ; 
+
+	uint32_t max_ino =  ospfs_super->n_inodes ;
+
+	while( entry_ino < max_ino ) 
+	{
+		// if the inode is free, we'll use it
+		if( new_oi->nlink = 0 )
+			break ;
+
+		new_oi += OSPFS_INODESIZE ;
+		entry_ino ++ ;
+	}
+	if( entry_ino >=  max_ino )
+		return -ENOSPC ; // not really, we ran out of inodes TODO: check for better retval
+
+	// set symlink metadata
+	new_oi->oi_size = symlink_len ;
+	new_oi->oi_ftype = OSPFS_FTYPE_SYMLINK ;
+	new_oi->oi_nlink ++ ;
+	strncpy( ((ospfs_symlink_inode_t*)new_oi)->oi_symlink, symname, symlink_len ) ;
+
+	// fill out directory entry
+	new_entry->od_ino = entry_ino ;
+	strncpy( new_entry->od_name, dentry->name.name, dentry->name.len ) ;
 
 	/* Execute this code after your function has successfully created the
 	   file.  Set entry_ino to the created file's inode number before
