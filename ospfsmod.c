@@ -753,6 +753,18 @@ add_block(ospfs_inode_t *oi)
 
 	int32_t direct = direct_index(n);
 
+	if(n == 0){
+	  d = allocate_block();
+	  if(d == 0)
+	    return -ENOSPC;
+	  oi->oi_direct[0] = d;
+	  data = (uint32_t*) ospfs_block(d);
+	  for(i = 0; i < 256; i++)
+	    data[i] = 0;
+	  oi->oi_size = (n+1)*1024;
+	  return 0;
+	}
+
 	if(indir2 == -1 && indir2_new == 0){
 	  //allocate new indir2 block
 	 
@@ -775,7 +787,7 @@ add_block(ospfs_inode_t *oi)
 	      return -ENOSPC;
 	    }
 	    
-	    if(indir_new == 0) //if no indir2 block needed allocate to indirect pointer
+	    if(indir2_new != 0) //if no indir2 block needed allocate to indirect pointer
 	      oi->oi_indirect = allocated[1]; 
 	    else{ //otherwise follow the  indir2 block and allocate the indir into correct place
 	      if(oi->oi_indirect2 == 0)
