@@ -1391,7 +1391,6 @@ ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dent
 //   3. Initialize the directory entry and inode.
 //
 //   EXERCISE: Complete this function.
-//	 TODO: what about concurrency?
 
 static int
 ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidata *nd)
@@ -1511,7 +1510,7 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 	while( entry_ino < max_ino ) 
 	{
 		// if the inode is free, we'll use it
-		if( new_oi->oi_nlink = 0 )
+		if( new_oi->oi_nlink == 0 )
 			break ;
 
 		new_oi += OSPFS_INODESIZE ;
