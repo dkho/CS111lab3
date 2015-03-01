@@ -453,7 +453,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 * the loop.  For now we do this all the time.
 		 *
 		 * EXERCISE: Your code here */
-		 if( f_pos > dir_oi->oi_size ) 
+		 if( f_pos > dir_oi->oi_size / OSPFS_DIRENTRY_SIZE ) 
 		 {
 			r = 1;		
 			break;		
@@ -503,6 +503,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 				break ;
 			default :
 				eprintk( "Error in ospfs_dir_readdir! impropper file type\n" ) ;
+				dtype = NULL ; // silence warnings
 			}
 			ok_so_far = filldir( dirent, od->od_name, 
 								strlen(od->od_name), f_pos -2, 
