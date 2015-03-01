@@ -775,6 +775,8 @@ add_block(ospfs_inode_t *oi)
 	    if(indir_new == 0) //if no indir2 block needed allocate to indirect pointer
 	      oi->oi_indirect = allocated[1]; 
 	    else{ //otherwise follow the  indir2 block and allocate the indir into correct place
+	      if(oi->oi_indirect2 == 0)
+		return -EIO;
 	      data = (uint32_t*) ospfs_block(oi->oi_indirect2);
 	      data[indir_new] = allocated[1];
 	    }
@@ -808,12 +810,18 @@ add_block(ospfs_inode_t *oi)
 	}
 
 	if(indir2_new == 0){
+	  if(oi->oi_indirect2 == 0)
+	    return -EIO;
 	  data = (uint32_t*) ospfs_block(oi->oi_indirect2); //data holds indirect2 block
+	  if(data[indir_new] == 0)
+	    return -EIO;
 	  data = (uint32_t*) ospfs_block(data[indir_new]);  //data holds indirect block
 	  data[direct] = d;
 
 	  
 	} else if(indir_new == 0){
+	  if(oi->oi_indirect == 0)
+	    return -EIO;
 	  data = (uint32_t*) ospfs_block(oi->oi_indirect);
 	  data[direct] = d;
 	} else{
@@ -957,8 +965,14 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 	while (ospfs_size2nblocks(oi->oi_size) < ospfs_size2nblocks(new_size)) {
 	        /* EXERCISE: Your code here */
 	        r = add_block(oi);
-		if(r < 0)
+		if(r < 0){
+		  if(r == -ENOSPC){
+		    while(ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(old_size)){
+		      remove_block(oi);
+		    }
+		  }
 		  return r;
+		}
 	}
 	while (ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(new_size)) {
 	        /* EXERCISE: Your code here */
