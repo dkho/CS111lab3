@@ -594,8 +594,10 @@ allocate_block(void)
         int i;
 	for(i = 0; i < ospfs_super->os_nblocks; i++){
 	  if(bitvector_test(ospfs_block(2), i) == 1)
+	  {
 	    bitvector_clear(ospfs_block(2), i);
 	    return i;
+	  }
 	}
 	return 0;
 }
@@ -1379,8 +1381,8 @@ ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dent
 	if( IS_ERR( new_direntry ) )
 		return PTR_ERR( new_direntry ) ; // will be -ENOSPC or -EIO
 	
-	// copy the name over
-	strncpy( new_direntry->od_name, dst_dentry->d_name.name, dst_dentry->d_name.len ) ;
+	// copy the name over // don't forget nullbyte
+	strncpy( new_direntry->od_name, dst_dentry->d_name.name, dst_dentry->d_name.len + 1 ) ;
 
 	// set the inode
 	new_direntry->od_ino = src_dentry->d_inode->i_ino ;
@@ -1431,7 +1433,7 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 	ospfs_direntry_t* new_direntry;
 	uint32_t max_ino;
 	ospfs_inode_t* new_oi;
-	// first, check the name length
+	// first, check the name length, the array is 1 byte longer than MAXNAMELEN (for nullbyte)
 	if( dentry->d_name.len > OSPFS_MAXNAMELEN )
 		return -ENAMETOOLONG ;
 	
@@ -1456,7 +1458,7 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 		if( new_oi->oi_nlink == 0 )
 			break ;
 
-		new_oi ++ ;  //= OSPFS_INODESIZE ;
+		new_oi ++ ; 
 		entry_ino ++ ;
 	}
 	if( entry_ino >= max_ino )
@@ -1470,7 +1472,7 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 
 	//set direntry data
 	new_direntry->od_ino = entry_ino ;
-	strncpy( new_direntry->od_name, dentry->d_name.name, dentry->d_name.len ) ;
+	strncpy( new_direntry->od_name, dentry->d_name.name, dentry->d_name.len + 1 ) ;
 
 	/* Execute this code after your function has successfully created the
 	   file.  Set entry_ino to the created file's inode number before
@@ -1537,7 +1539,7 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 		return PTR_ERR( new_direntry ) ; // will be -ENOSPC or -EIO
 
 	// get a new inode for now: look from low to high for inodes
-	entry_ino = OSPFS_ROOT_INO + 1 ; // root is 1
+	entry_ino = OSPFS_ROOT_INO ;//+ 1 ; // root is 1
 	
 	new_oi = ospfs_inode( entry_ino ) ; 
 
@@ -1549,7 +1551,7 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 		if( new_oi->oi_nlink == 0 )
 			break ;
 
-		new_oi += OSPFS_INODESIZE ;
+		new_oi ++ ;
 		entry_ino ++ ;
 	}
 	if( entry_ino >=  max_ino )
@@ -1559,11 +1561,11 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 	new_oi->oi_size = symlink_len ;
 	new_oi->oi_ftype = OSPFS_FTYPE_SYMLINK ;
 	new_oi->oi_nlink ++ ;
-	strncpy( ((ospfs_symlink_inode_t*)new_oi)->oi_symlink, symname, symlink_len ) ;
+	strncpy( ((ospfs_symlink_inode_t*)new_oi)->oi_symlink, symname, symlink_len + 1 ) ;
 
 	// fill out directory entry
 	new_direntry->od_ino = entry_ino ;
-	strncpy( new_direntry->od_name, dentry->d_name.name, dentry->d_name.len ) ;
+	strncpy( new_direntry->od_name, dentry->d_name.name, dentry->d_name.len + 1 ) ;
 
 	/* Execute this code after your function has successfully created the
 	   file.  Set entry_ino to the created file's inode number before
@@ -1597,6 +1599,7 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 	ospfs_symlink_inode_t *oi =
 		(ospfs_symlink_inode_t *) ospfs_inode(dentry->d_inode->i_ino);
 	// Exercise: Your code here.
+	eprintk("called follow link! but it's not done yet\n") ;
 
 	nd_set_link(nd, oi->oi_symlink);
 	return (void *) 0;
