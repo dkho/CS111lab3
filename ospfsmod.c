@@ -1130,9 +1130,10 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	// If the user is writing past the end of the file, change the file's
 	// size to accomodate the request.  (Use change_size().)
 	/* EXERCISE: Your code here */
-	if( *f_pos + count > oi->oi_size )
+	if( *f_pos + count > oi->oi_size ){
 		retval = change_size( oi, *f_pos + count ) ;
-
+		eprintk("%d here", retval);
+	}
 	// Copy data block by block
 	while (amount < count && retval >= 0) {
 		uint32_t blockno = ospfs_inode_blockno(oi, *f_pos);
@@ -1140,6 +1141,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 		char *data;
 
 		if (blockno == 0) {
+		        eprintk("here");
 			retval = -EIO;
 			goto done;
 		}
@@ -1511,7 +1513,7 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 	while( entry_ino < max_ino ) 
 	{
 		// if the inode is free, we'll use it
-		if( new_oi->oi_nlink = 0 )
+		if( new_oi->oi_nlink == 0 )
 			break ;
 
 		new_oi += OSPFS_INODESIZE ;
