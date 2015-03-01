@@ -1420,7 +1420,7 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 	while( entry_ino < max_ino ) 
 	{
 		// if the inode is free, we'll use it
-		if( new_oi->oi_nlink = 0 )
+		if( new_oi->oi_nlink == 0 )
 			break ;
 
 		new_oi += OSPFS_INODESIZE ;
