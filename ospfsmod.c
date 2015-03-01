@@ -483,7 +483,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 
 		// pretty sure direntries should all fit within block, cause they're 128 and block's 1024
 		uint32_t dir_offset = ( f_pos -2 ) * OSPFS_DIRENTRY_SIZE ;
-		od = (struct ospfs_direntry_t*) ospfs_inode_data( dir_oi, dir_offset )  ;	 
+		od = (ospfs_direntry_t*) ospfs_inode_data( dir_oi, dir_offset )  ;	 
 
 		if( od->od_ino != 0 )
 		{
@@ -503,7 +503,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 				break ;
 			default :
 				eprintk( "Error in ospfs_dir_readdir! impropper file type\n" ) ;
-				dtype = NULL ; // silence warnings
+				dtype = 0 ; // silence warnings
 			}
 			ok_so_far = filldir( dirent, od->od_name, strlen(od->od_name), f_pos -2, 
 											od->od_ino, dtype ) ;	
@@ -1411,7 +1411,6 @@ ospfs_link(struct dentry *src_dentry, struct inode *dir, struct dentry *dst_dent
 //   3. Initialize the directory entry and inode.
 //
 //   EXERCISE: Complete this function.
-//	 TODO: what about concurrency?
 
 static int
 ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidata *nd)
@@ -1447,10 +1446,10 @@ ospfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidat
 		if( new_oi->oi_nlink == 0 )
 			break ;
 
-		new_oi += OSPFS_INODESIZE ;
+		new_oi ++ ;  //= OSPFS_INODESIZE ;
 		entry_ino ++ ;
 	}
-	if( entry_ino >=  max_ino )
+	if( entry_ino >= max_ino )
 		return -ENOSPC ; // not really, we ran out of inodes TODO: check for better retval
 	
 	// set inode metadata 
