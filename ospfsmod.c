@@ -1037,7 +1037,7 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 	// Change 'count' so we never read past the end of the file.
 	/* EXERCISE: Your code here */
 
-	if( f_pos + count > oi->oi_size )
+	if( *f_pos + count > oi->oi_size )
 		count = ( oi->oi_size - *f_pos ) ;	
 	
 	// Copy the data to user block by block
@@ -1060,11 +1060,16 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 		// Use variable 'n' to track number of bytes moved.
 		/* EXERCISE: Your code here */
 		
+		// the first f_pos might not be block alligned
+		uint32_t block_offset= *f_pos % OSPFS_BLKSIZE ;
+		data += block_offset ;
+
 		// n = (left_to_read < left_in_blk)? left_to_read : left_in_blk
 		size_t ltr = count - amount ;
-		n = (ltr < OSPFS_BLKSIZE )? ltr : OSPFS_BLKSIZE ;
+		n = (ltr < OSPFS_BLKSIZE - block_offset )? ltr : OSPFS_BLKSIZE - block_offset ;
 
-		retval = copy_to_user( buffer , data , n ) ;
+		if ( copy_to_user( buffer , data , n ) > 0 )
+			return -EFAULT ;
 
 		buffer += n;
 		amount += n;
@@ -1103,12 +1108,14 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	// Support files opened with the O_APPEND flag.  To detect O_APPEND,
 	// use struct file's f_flags field and the O_APPEND bit.
 	/* EXERCISE: Your code here */
+	if( filp->f_flags & O_APPEND )
+		*f_pos = oi->oi_size ;	
 
 	// If the user is writing past the end of the file, change the file's
 	// size to accomodate the request.  (Use change_size().)
 	/* EXERCISE: Your code here */
-	if( f_pos + count > oi->oi_size )
-		retval = change_size( oi, f_pos + count ) ;
+	if( *f_pos + count > oi->oi_size )
+		retval = change_size( oi, *f_pos + count ) ;
 
 	// Copy data block by block
 	while (amount < count && retval >= 0) {
@@ -1121,15 +1128,24 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 			goto done;
 		}
 
-		data = ospfs_block(blockno);
+		data = ospfs_block(blockno) ;
 
 		// Figure out how much data is left in this block to write.
 		// Copy data from user space. Return -EFAULT if unable to read
 		// read user space.
 		// Keep track of the number of bytes moved in 'n'.
 		/* EXERCISE: Your code here */
-		n = ( count - amount < OSPFS_BLKSIZE )? count - amount : OSPFS_BLKSIZE ;
-		retval = copy_from_user( data, buffer, n ) ;
+
+		// the first f_pos might not be block alligned
+		uint32_t block_offset= *f_pos % OSPFS_BLKSIZE ;
+		data += block_offset ;
+
+		// n = (left_to_write < left_in_blk)? left_to_write : left_in_blk
+		size_t ltw = count - amount ;
+
+		n = ( ltw < OSPFS_BLKSIZE - block_offset )? ltw : OSPFS_BLKSIZE - block_offset ;
+		if( copy_from_user( data, buffer, n ) > 0 ) 
+			return -EFAULT ;
 
 		buffer += n;
 		amount += n;
@@ -1207,12 +1223,14 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 	//    Use ERR_PTR if this fails; otherwise, clear out all the directory
 	//    entries and return one of them.
 	
-	uint32_t dir_pos = 0 ; 
+	uint32_t dir_pos = 0 ;
+	uint32_t block_offset = 0 ;
 	ospfs_direntry_t* direntry = 
 		(ospfs_direntry_t*) ospfs_block( ospfs_inode_blockno( dir_oi, dir_pos ) ) ;
 
+
 	uint32_t dir_size = dir_oi->oi_size ;
-	while( dir_pos < dir_size )
+	while( dir_pos + OSPFS_DIRENTRY_SIZE < dir_size )
 	{
 		// check if this direntry's free
 		if( direntry->od_ino == 0 )
@@ -1220,10 +1238,14 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 
 		// update file pos
 		dir_pos += OSPFS_DIRENTRY_SIZE ;
+		block_offset += OSPFS_DIRENTRY_SIZE ;
 
 		// update pointer pos
-		if( dir_pos > OSPFS_BLKSIZE )
+		if( block_offset >= OSPFS_BLKSIZE )
+		{
 			 direntry = (ospfs_direntry_t*) ospfs_block( ospfs_inode_blockno( dir_oi, dir_pos ));
+			 block_offset = 0 ;
+		}
 		else
 			direntry += OSPFS_DIRENTRY_SIZE ;
 	}
@@ -1231,7 +1253,7 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 	// add block if we need to
 	if( dir_pos >= dir_size )
 	{
-		int stat = add_block( dir_oi ) != 0 ; // 0 initializes right? 
+		int stat = add_block( dir_oi ) ; // 0 initializes right? 
 		if( stat == -ENOSPC )
 			return ERR_PTR(-ENOSPC) ;
 		if( stat == -EIO ) 
