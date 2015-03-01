@@ -427,8 +427,10 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 	struct inode *dir_inode = filp->f_dentry->d_inode;
 	ospfs_inode_t *dir_oi = ospfs_inode(dir_inode->i_ino);
 	uint32_t f_pos = filp->f_pos;
-	int r = 0;		/* Error return value, if any */
-	int ok_so_far = 0;	/* Return value from 'filldir' */
+	int r = 0 ;		/* Error return value, if any */
+	int ok_so_far = 0 ;	/* Return value from 'filldir' */
+	uint32_t dir_offset ; // I defined
+	unsigned char dtype ; // directory type 
 
 	// f_pos is an offset into the directory's data, plus two.
 	// The "plus two" is to account for "." and "..".
@@ -482,13 +484,12 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		/* EXERCISE: Your code here */
 
 		// pretty sure direntries should all fit within block, cause they're 128 and block's 1024
-		uint32_t dir_offset = ( f_pos -2 ) * OSPFS_DIRENTRY_SIZE ;
+		dir_offset = ( f_pos -2 ) * OSPFS_DIRENTRY_SIZE ;
 		od = (ospfs_direntry_t*) ospfs_inode_data( dir_oi, dir_offset )  ;	 
 
 		if( od->od_ino != 0 )
 		{
 			entry_oi = ospfs_inode( od->od_ino ) ;
-			unsigned char dtype ;
 
 			switch( entry_oi->oi_ftype )
 			{
@@ -778,7 +779,10 @@ add_block(ospfs_inode_t *oi)
 	      oi->oi_indirect = allocated[1]; 
 	    else{ //otherwise follow the  indir2 block and allocate the indir into correct place
 	      if(oi->oi_indirect2 == 0)
-		return -EIO;
+		  {
+		  	eprintk( "A: indir: %i indir_new: %i\n", indir, indir_new ) ;
+		    return -EIO;
+		  }
 	      data = (uint32_t*) ospfs_block(oi->oi_indirect2);
 	      data[indir_new] = allocated[1];
 	    }
@@ -816,14 +820,19 @@ add_block(ospfs_inode_t *oi)
 	    return -EIO;
 	  data = (uint32_t*) ospfs_block(oi->oi_indirect2); //data holds indirect2 block
 	  if(data[indir_new] == 0)
+	  {
+	  	eprintk( "B\n" ) ;
 	    return -EIO;
+	  }
 	  data = (uint32_t*) ospfs_block(data[indir_new]);  //data holds indirect block
 	  data[direct] = d;
 
 	  
 	} else if(indir_new == 0){
 	  if(oi->oi_indirect == 0)
+	  {
 	    return -EIO;
+	  }
 	  data = (uint32_t*) ospfs_block(oi->oi_indirect);
 	  data[direct] = d;
 	} else{
@@ -1132,9 +1141,10 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	// If the user is writing past the end of the file, change the file's
 	// size to accomodate the request.  (Use change_size().)
 	/* EXERCISE: Your code here */
-	if( *f_pos + count > oi->oi_size ){
+	if( *f_pos + count > oi->oi_size )
+	{
 		retval = change_size( oi, *f_pos + count ) ;
-		eprintk("%d here", retval);
+		eprintk("%d just changed size\n", retval);
 	}
 	// Copy data block by block
 	while (amount < count && retval >= 0) {
@@ -1144,7 +1154,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 		uint32_t block_offset;
 		size_t ltw;
 		if (blockno == 0) {
-		        eprintk("here");
+		    eprintk("here\n");
 			retval = -EIO;
 			goto done;
 		}
@@ -1158,7 +1168,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 		/* EXERCISE: Your code here */
 
 		// the first f_pos might not be block alligned
-		block_offset= *f_pos % OSPFS_BLKSIZE ;
+		block_offset = *f_pos % OSPFS_BLKSIZE ;
 		data += block_offset ;
 
 		// n = (left_to_write < left_in_blk)? left_to_write : left_in_blk
@@ -1261,14 +1271,14 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 		dir_pos += OSPFS_DIRENTRY_SIZE ;
 		block_offset += OSPFS_DIRENTRY_SIZE ;
 
-		// update pointer pos
+		// update block pointer if need be
 		if( block_offset >= OSPFS_BLKSIZE )
 		{
 			 direntry = (ospfs_direntry_t*) ospfs_block( ospfs_inode_blockno( dir_oi, dir_pos ));
 			 block_offset = 0 ;
 		}
 		else
-			direntry += OSPFS_DIRENTRY_SIZE ;
+			direntry ++ ;
 	}
 
 	// add block if we need to
@@ -1502,7 +1512,7 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 		return -ENAMETOOLONG ;
 
 	symlink_len = strlen( symname ) ;
-	if( symlink_len < OSPFS_MAXSYMLINKLEN )
+	if( symlink_len > OSPFS_MAXSYMLINKLEN )
 		return -ENAMETOOLONG ;
 
 	// check to see if the file already exists
