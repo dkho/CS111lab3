@@ -775,6 +775,8 @@ add_block(ospfs_inode_t *oi)
 	    if(indir_new == 0) //if no indir2 block needed allocate to indirect pointer
 	      oi->oi_indirect = allocated[1]; 
 	    else{ //otherwise follow the  indir2 block and allocate the indir into correct place
+	      if(oi->oi_indirect2 == 0)
+		return -EIO;
 	      data = (uint32_t*) ospfs_block(oi->oi_indirect2);
 	      data[indir_new] = allocated[1];
 	    }
@@ -808,12 +810,18 @@ add_block(ospfs_inode_t *oi)
 	}
 
 	if(indir2_new == 0){
+	  if(oi->oi_indirect2 == 0)
+	    return -EIO;
 	  data = (uint32_t*) ospfs_block(oi->oi_indirect2); //data holds indirect2 block
+	  if(data[indir_new] == 0)
+	    return -EIO;
 	  data = (uint32_t*) ospfs_block(data[indir_new]);  //data holds indirect block
 	  data[direct] = d;
 
 	  
 	} else if(indir_new == 0){
+	  if(oi->oi_indirect == 0)
+	    return -EIO;
 	  data = (uint32_t*) ospfs_block(oi->oi_indirect);
 	  data[direct] = d;
 	} else{
@@ -957,8 +965,14 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 	while (ospfs_size2nblocks(oi->oi_size) < ospfs_size2nblocks(new_size)) {
 	        /* EXERCISE: Your code here */
 	        r = add_block(oi);
-		if(r < 0)
+		if(r < 0){
+		  if(r == -ENOSPC){
+		    while(ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(old_size)){
+		      remove_block(oi);
+		    }
+		  }
 		  return r;
+		}
 	}
 	while (ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(new_size)) {
 	        /* EXERCISE: Your code here */
@@ -1037,7 +1051,7 @@ ospfs_read(struct file *filp, char __user *buffer, size_t count, loff_t *f_pos)
 	// Change 'count' so we never read past the end of the file.
 	/* EXERCISE: Your code here */
 
-	if( f_pos + count > oi->oi_size )
+	if( *f_pos + count > oi->oi_size )
 		count = ( oi->oi_size - *f_pos ) ;	
 	
 	// Copy the data to user block by block
@@ -1103,7 +1117,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	// Support files opened with the O_APPEND flag.  To detect O_APPEND,
 	// use struct file's f_flags field and the O_APPEND bit.
 	/* EXERCISE: Your code here */
-
+	
 	// If the user is writing past the end of the file, change the file's
 	// size to accomodate the request.  (Use change_size().)
 	/* EXERCISE: Your code here */
@@ -1222,7 +1236,7 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 		dir_pos += OSPFS_DIRENTRY_SIZE ;
 
 		// update pointer pos
-		if( dir_pos > OSPFS_BLKSIZE )
+		if( dir_pos > OSPFS_BLKSIZE ) //Can this accidentally try to get a block that doesn't exist yet?
 			 direntry = (ospfs_direntry_t*) ospfs_block( ospfs_inode_blockno( dir_oi, dir_pos ));
 		else
 			direntry += OSPFS_DIRENTRY_SIZE ;
@@ -1231,7 +1245,7 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 	// add block if we need to
 	if( dir_pos >= dir_size )
 	{
-		int stat = add_block( dir_oi ) != 0 ; // 0 initializes right? 
+		int stat = add_block( dir_oi ) ; // 0 initializes right? 
 		if( stat == -ENOSPC )
 			return ERR_PTR(-ENOSPC) ;
 		if( stat == -EIO ) 
