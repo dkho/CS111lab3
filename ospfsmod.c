@@ -651,8 +651,8 @@ free_block(uint32_t blockno)
 static int32_t
 indir2_index(uint32_t b)
 {
-        if(b > 265)
-	  return 0;
+	if(b > 265)
+		return 0;
 	return -1;
 }
 
@@ -672,10 +672,10 @@ static int32_t
 indir_index(uint32_t b)
 {
 	// Your code here.
-        if(b < 10)
-	  return -1;
+	if(b < 10)
+		return -1;
 	if(b < 266)
-	  return 0;
+		return 0;
 	return (b-266)/256; //check this math
 }
 
@@ -693,8 +693,8 @@ static int32_t
 direct_index(uint32_t b)
 {
 	// Your code here.
-        if(b < 10) 
-	  return b;
+	if(b < 10) 
+		return b;
 	return (b-10)%256; //check this math
 }
 
@@ -1244,7 +1244,7 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 
 
 	uint32_t dir_size = dir_oi->oi_size ;
-	while( dir_pos + OSPFS_DIRENTRY_SIZE < dir_size )
+	while( dir_pos + OSPFS_DIRENTRY_SIZE <= dir_size )
 	{
 		// check if this direntry's free
 		if( direntry->od_ino == 0 )
