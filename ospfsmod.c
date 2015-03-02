@@ -775,11 +775,12 @@ add_block(ospfs_inode_t *oi)
 	    return -ENOSPC;
 	  oi->oi_indirect2 = allocated[0];
 	  data = (uint32_t*) ospfs_block(allocated[0]);
+	  eprintk("indir2alloc\n");
 	  for(i = 0; i < 256; i++)
 	    data[i] = 0; //zero out the new block
 	}
-
-	if(indir != indir_new){
+	
+	if(allocated[0] != 0 || indir != indir_new){
 	  //allocate new indir block
 	  allocated[1] = allocate_block(); //allocate new block
 	  if(allocated[1] == 0){ //if no space
@@ -787,11 +788,13 @@ add_block(ospfs_inode_t *oi)
 	      free_block(allocated[0]); //free the block
 	      oi->oi_indirect2 = 0; //reset the pointer
 	    }
-	      return -ENOSPC;
+	    return -ENOSPC;
 	  }
 	  
-	  if(indir2_new != 0) //if no indir2 block needed allocate to indirect pointer
+	  if(indir2_new != 0){ //if no indir2 block needed allocate to indirect pointer
+	    eprintk("Tick!\n");
 	    oi->oi_indirect = allocated[1]; 
+	  }
 	  else{ //otherwise follow the  indir2 block and allocate the indir into correct place
 	    if(oi->oi_indirect2 == 0)
 	      {
@@ -800,8 +803,8 @@ add_block(ospfs_inode_t *oi)
 	      }
 	    data = (uint32_t*) ospfs_block(oi->oi_indirect2);
 	    data[indir_new] = allocated[1];
+	    eprintk("%d\n", data[indir_new]);
 	  }
-	  
 	  
 	  //zero out block
 	  data = (uint32_t*) ospfs_block(allocated[1]);
@@ -834,7 +837,7 @@ add_block(ospfs_inode_t *oi)
 	  if(oi->oi_indirect2 == 0)
 	    return -EIO;
 	  data = (uint32_t*) ospfs_block(oi->oi_indirect2); //data holds indirect2 block
-	  if(data[indir_new] == 0)
+	  if(data[indir_new] == 0)   //TRIGGERING
 	  {
 	  	eprintk( "B\n" ) ;
 	    return -EIO;
@@ -860,6 +863,7 @@ add_block(ospfs_inode_t *oi)
 	  data[i] = 0;
 	
 	oi->oi_size = (n+1)*1024;
+	//eprintk("Check\n");
 	return 0;
 	//return -EIO; // Replace this line
 }
@@ -894,9 +898,9 @@ remove_block(ospfs_inode_t *oi)
 	uint32_t n = ospfs_size2nblocks(oi->oi_size);
 	uint32_t * data;
 	/* EXERCISE: Your code here */
-	int32_t ind2  = indir2_index(n);
-	int32_t ind = indir_index(n);
-	int32_t dir = direct_index(n);
+	int32_t ind2  = indir2_index(n-1);
+	int32_t ind = indir_index(n-1);
+	int32_t dir = direct_index(n-1);
 	//NOTE EIO occurs when we should have an ind/ind2 but there isn't one
 	if(ind2 != -1){
 	  if(oi->oi_indirect2 ==0){
@@ -934,7 +938,7 @@ remove_block(ospfs_inode_t *oi)
 	  }
 	  data = ospfs_block(oi->oi_indirect);
 	  if(data[dir] == 0){
-	    eprintk("rmblock4\n");
+	    eprintk("rmblock41\n");
 	    return -EIO;
 	  }
 	  free_block(data[dir]);
@@ -1172,7 +1176,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	if( *f_pos + count > oi->oi_size )
 	{
 		retval = change_size( oi, *f_pos + count ) ;
-		eprintk("%d just changed size\n", retval);
+		//eprintk("%d just changed size\n", retval);
 	}
 	// Copy data block by block
 	while (amount < count && retval >= 0) {
