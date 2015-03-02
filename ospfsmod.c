@@ -1235,7 +1235,6 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 			
 			// downsize
 			change_size( oi, *f_pos - count ) ;
-			//oi->oi_size -= count ;
 			
 			// retval of change_size shouldn't be -EIO, unless inode's corrupted, I think
 			return -EFAULT ;
