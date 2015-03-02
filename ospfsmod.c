@@ -446,6 +446,8 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 			f_pos++;
 	}
 
+	//int num = 0 ;
+	//int entry_count = 0 ;
 	// actual entries
 	while (r == 0 && ok_so_far >= 0 && f_pos >= 2) {
 		ospfs_direntry_t *od;
@@ -455,8 +457,11 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 * the loop.  For now we do this all the time.
 		 *
 		 * EXERCISE: Your code here */
-		 if( f_pos > dir_oi->oi_size / OSPFS_DIRENTRY_SIZE ) 
+		 //num++ ;
+		 //eprintk("num=%i\n", num) ;
+		 if( f_pos - 2 > dir_oi->oi_size / OSPFS_DIRENTRY_SIZE ) 
 		 {
+		 	//eprintk("reached end of dir n= %i, entry_count = %i, nentries = %i\n", num, entry_count, dir_oi->oi_size / OSPFS_DIRENTRY_SIZE ) ;
 			r = 1;		
 			break;		
 		 }
@@ -489,6 +494,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 
 		if( od->od_ino != 0 )
 		{
+			// entry_count ++ ;
 			entry_oi = ospfs_inode( od->od_ino ) ;
 
 			switch( entry_oi->oi_ftype )
@@ -1182,8 +1188,9 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	if( *f_pos + count > oi->oi_size )
 	{
 		retval = change_size( oi, *f_pos + count ) ;
-		//eprintk("%d just changed size\n", retval);
+		oi->oi_size += count ; // added
 	}
+
 	// Copy data block by block
 	while (amount < count && retval >= 0) {
 		uint32_t blockno = ospfs_inode_blockno(oi, *f_pos);
@@ -1214,7 +1221,8 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 
 		n = ( ltw < OSPFS_BLKSIZE - block_offset )? ltw : OSPFS_BLKSIZE - block_offset ;
 		if( copy_from_user( data, buffer, n ) > 0 ) 
-			return -EFAULT ;
+			return -EFAULT ; // should never get called cause we're writing
+
 
 		buffer += n;
 		amount += n;
@@ -1330,8 +1338,10 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 			return ERR_PTR(-EIO) ;
 
 		dir_pos += OSPFS_DIRENTRY_SIZE ;
+		dir_oi->oi_size += OSPFS_DIRENTRY_SIZE ; // yeah ?
 		direntry = (ospfs_direntry_t*) ospfs_block( ospfs_inode_blockno( dir_oi, dir_pos ) ) ;
 	}
+
 
 	return direntry; 
 }
