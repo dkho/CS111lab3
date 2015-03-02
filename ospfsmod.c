@@ -459,7 +459,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 * EXERCISE: Your code here */
 		 //num++ ;
 		 //eprintk("num=%i\n", num) ;
-		 if( f_pos - 2 > dir_oi->oi_size / OSPFS_DIRENTRY_SIZE ) 
+		 if( f_pos - 2 >= dir_oi->oi_size / OSPFS_DIRENTRY_SIZE ) 
 		 {
 		 	//eprintk("reached end of dir n= %i, entry_count = %i, nentries = %i\n", num, entry_count, dir_oi->oi_size / OSPFS_DIRENTRY_SIZE ) ;
 			r = 1;		
@@ -496,6 +496,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		{
 			// entry_count ++ ;
 			entry_oi = ospfs_inode( od->od_ino ) ;
+			//eprintk("\nname: %s\n", od->od_name ) ;
 
 			switch( entry_oi->oi_ftype )
 			{
@@ -519,7 +520,10 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		if( ok_so_far >= 0 )
 			f_pos ++ ;
 		else
+		{
+			//eprintk("not ok_s_far\n") ;
 			break ;
+		}
 	}
 
 	// Save the file position and return!
@@ -1325,10 +1329,9 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 	while( dir_pos + OSPFS_DIRENTRY_SIZE <= dir_size )
 	{
 		// check if this direntry's free
-	        if( direntry->od_ino == 0 ){
-		  //eprintk("gothere\n");
-		  break ;
-		}
+		// when we allocate a block for a directory, the new direntries are cleared
+	    if( direntry->od_ino == 0 )
+			break ;
 		// update file pos
 		dir_pos += OSPFS_DIRENTRY_SIZE ;
 		block_offset += OSPFS_DIRENTRY_SIZE ;
@@ -1353,7 +1356,7 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 			return ERR_PTR(-EIO) ;
 
 		dir_pos += OSPFS_DIRENTRY_SIZE ;
-		dir_oi->oi_size += OSPFS_DIRENTRY_SIZE ; // yeah ?
+		//dir_oi->oi_size += OSPFS_BLKSIZE ; // yeah ?
 		direntry = (ospfs_direntry_t*) ospfs_block( ospfs_inode_blockno( dir_oi, dir_pos ) ) ;
 	}
 
