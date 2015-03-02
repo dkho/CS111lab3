@@ -446,6 +446,8 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 			f_pos++;
 	}
 
+	//int num = 0 ;
+	//int entry_count = 0 ;
 	// actual entries
 	while (r == 0 && ok_so_far >= 0 && f_pos >= 2) {
 		ospfs_direntry_t *od;
@@ -455,8 +457,11 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		 * the loop.  For now we do this all the time.
 		 *
 		 * EXERCISE: Your code here */
-		 if( f_pos > dir_oi->oi_size / OSPFS_DIRENTRY_SIZE ) 
+		 //num++ ;
+		 //eprintk("num=%i\n", num) ;
+		 if( f_pos - 2 > dir_oi->oi_size / OSPFS_DIRENTRY_SIZE ) 
 		 {
+		 	//eprintk("reached end of dir n= %i, entry_count = %i, nentries = %i\n", num, entry_count, dir_oi->oi_size / OSPFS_DIRENTRY_SIZE ) ;
 			r = 1;		
 			break;		
 		 }
@@ -489,6 +494,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 
 		if( od->od_ino != 0 )
 		{
+			// entry_count ++ ;
 			entry_oi = ospfs_inode( od->od_ino ) ;
 
 			switch( entry_oi->oi_ftype )
@@ -1018,7 +1024,6 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 		    while(ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(old_size)){
 		      if(remove_block(oi) < 0)
 			return -EIO;
-		      
 		    }
 		    oi->oi_size = old_size;
 		  }
@@ -1171,6 +1176,8 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	ospfs_inode_t *oi = ospfs_inode(filp->f_dentry->d_inode->i_ino);
 	int retval = 0;
 	size_t amount = 0;
+	char canaryA ; // we're gonna check if their pointer's valid before we resize
+	char canaryB ; // and the end of their "buffer", we don't trust them
 
 	// Support files opened with the O_APPEND flag.  To detect O_APPEND,
 	// use struct file's f_flags field and the O_APPEND bit.
@@ -1181,11 +1188,17 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	// If the user is writing past the end of the file, change the file's
 	// size to accomodate the request.  (Use change_size().)
 	/* EXERCISE: Your code here */
+
+	// check the user's buffer
+	if( ( copy_from_user( &canaryA, buffer, 1 ) > 0 ) 
+		|| ( copy_from_user( &canaryB, buffer + count - 1, 1 ) > 0 ) )
+		return -EFAULT ;
+
 	if( *f_pos + count > oi->oi_size )
 	{
 		retval = change_size( oi, *f_pos + count ) ;
-		//eprintk("%d just changed size\n", retval);
 	}
+
 	// Copy data block by block
 	while (amount < count && retval >= 0) {
 		uint32_t blockno = ospfs_inode_blockno(oi, *f_pos);
@@ -1216,7 +1229,18 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 
 		n = ( ltw < OSPFS_BLKSIZE - block_offset )? ltw : OSPFS_BLKSIZE - block_offset ;
 		if( copy_from_user( data, buffer, n ) > 0 ) 
+		{
+			// this shouldn't happen unless user is being really sneaky or really stupid
+			// ie the beginning and end of their buffer is valid, but somthing in between isn't
+			
+			// downsize
+			change_size( oi, *f_pos - count ) ;
+			//oi->oi_size -= count ;
+			
+			// retval of change_size shouldn't be -EIO, unless inode's corrupted, I think
 			return -EFAULT ;
+		}
+
 
 		buffer += n;
 		amount += n;
@@ -1332,8 +1356,10 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 			return ERR_PTR(-EIO) ;
 
 		dir_pos += OSPFS_DIRENTRY_SIZE ;
+		dir_oi->oi_size += OSPFS_DIRENTRY_SIZE ; // yeah ?
 		direntry = (ospfs_direntry_t*) ospfs_block( ospfs_inode_blockno( dir_oi, dir_pos ) ) ;
 	}
+
 
 	return direntry; 
 }
@@ -1627,8 +1653,44 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 		(ospfs_symlink_inode_t *) ospfs_inode(dentry->d_inode->i_ino);
 	// Exercise: Your code here.
 	//eprintk("\ncalled follow link!\n") ;
+	size_t startpos = 5 ; // first char after '?'
+	size_t midpos = 5 ; // first char after ':'
+	size_t endpos = 5 ; // one after last character index
+	size_t len = strlen( oi->oi_symlink ) ;
+	char name[len] ;
 
-	nd_set_link(nd, oi->oi_symlink);
+
+	while( endpos < len )
+	{
+		// grab the position of the first char after ':'
+		if( oi->oi_symlink[endpos] == ':' )
+			midpos = endpos + 1 ;
+		
+		endpos ++ ;
+	}
+
+	// if valid syntax for conditional symlink test condition and respond
+	// otherwise, just treat the whole thing as a regular symlink
+	// 	[0:4] for "root?", [startpos:midpos-2] for 1st thing, 
+	// 	[midpos-1] for ":" [midpos:endpos-1] for 2nd thing
+	if ( ( startpos < midpos - 1 ) && ( midpos < endpos ) )
+	{
+		if( current->uid == 0 ) // user is root
+		{
+			strncpy( name, &oi->oi_symlink[startpos], midpos - 1 - startpos ) ;
+			name[ midpos - startpos ] = '\0' ;
+			nd_set_link( nd, name ) ;
+		}
+		else
+		{
+			strncpy( name, &oi->oi_symlink[midpos], endpos - midpos ) ;
+			name[ endpos - midpos + 1 ] = '\0' ;
+			nd_set_link( nd, name ) ;
+		}
+	}
+	else
+		nd_set_link(nd, oi->oi_symlink);
+
 	return (void *) 0;
 }
 
