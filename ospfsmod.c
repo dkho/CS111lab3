@@ -1013,6 +1013,7 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 		    while(ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(old_size)){
 		      remove_block(oi);
 		    }
+		    oi->oi_size == old_size;
 		  }
 		  return r;
 		}
