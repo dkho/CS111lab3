@@ -1194,9 +1194,7 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 		return -EFAULT ;
 
 	if( *f_pos + count > oi->oi_size )
-	{
 		retval = change_size( oi, *f_pos + count ) ;
-	}
 
 	// Copy data block by block
 	while (amount < count && retval >= 0) {
@@ -1653,15 +1651,12 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 	size_t startpos = 5 ; // first char after '?'
 	size_t midpos = 5 ; // first char after ':'
 	size_t endpos = 5 ; // one after last character index
-	size_t len = strlen( oi->oi_symlink ) ;
-	char name[len] ;
-
-	eprintk("\ncalled follow link!\n") ;
+	size_t len = oi->oi_size ;
 
 	while( endpos < len )
 	{
 		// grab the position of the first char after ':'
-		if( oi->oi_symlink[endpos] == ':' )
+		if( oi->oi_symlink[endpos] == ':' || oi->oi_symlink[endpos] == '\0' )
 			midpos = endpos + 1 ;
 		
 		endpos ++ ;
@@ -1671,24 +1666,29 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 	// otherwise, just treat the whole thing as a regular symlink
 	// 	[0:4] for "root?", [startpos:midpos-2] for 1st thing, 
 	// 	[midpos-1] for ":" [midpos:endpos-1] for 2nd thing
+
+	//eprintk("startpos: %i, midpos: %i, endpos: %i\n", startpos, midpos, endpos ) ;
 	if ( ( startpos < midpos - 1 ) && ( midpos < endpos ) )
 	{
+		if( oi->oi_symlink[midpos-1] == ':' )
+			oi->oi_symlink[midpos-1] = '\0' ;
+
 		if( current->uid == 0 ) // user is root
 		{
-			strncpy( name, &oi->oi_symlink[startpos], midpos - 1 - startpos ) ;
-			name[ midpos - startpos ] = '\0' ;
-			nd_set_link( nd, name ) ;
+			//eprintk("condlink, is root, name: %s\n", &oi->oi_symlink[startpos]) ;
+			nd_set_link( nd, &oi->oi_symlink[startpos]  ) ;
 		}
 		else
 		{
-			strncpy( name, &oi->oi_symlink[midpos], endpos - midpos ) ;
-			name[ endpos - midpos + 1 ] = '\0' ;
-			nd_set_link( nd, name ) ;
+			//eprintk("condlink, is NOT root, name: %s\n", &oi->oi_symlink[startpos]) ;
+			nd_set_link( nd, &oi->oi_symlink[midpos]  ) ;
 		}
 	}
 	else
+	{
+		//eprintk("not a condlink!\n") ;
 		nd_set_link(nd, oi->oi_symlink);
-
+	}
 	return (void *) 0;
 }
 
