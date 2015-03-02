@@ -559,6 +559,9 @@ ospfs_unlink(struct inode *dirino, struct dentry *dentry)
 
 	od->od_ino = 0;
 	oi->oi_nlink--;
+	if(oi->oi_nlink == 0 && oi->oi_ftype != OSPFS_FTYPE_SYMLINK){
+	  change_size(oi, 0);
+	}
 	return 0;
 }
 
@@ -620,6 +623,7 @@ free_block(uint32_t blockno)
 	/* EXERCISE: Your code here */
         if(blockno < ospfs_super->os_firstinob) return;
 	bitvector_set(ospfs_block(2) , blockno);
+	eprintk("freeblock\n");
 	return;
 }
 
@@ -1004,6 +1008,7 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 {
 	uint32_t old_size = oi->oi_size;
 	int r = 0;
+	eprintk("changesize\n");
 
 	while (ospfs_size2nblocks(oi->oi_size) < ospfs_size2nblocks(new_size)) {
 	        /* EXERCISE: Your code here */
@@ -1013,7 +1018,7 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 		    while(ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(old_size)){
 		      remove_block(oi);
 		    }
-		    oi->oi_size == old_size;
+		    oi->oi_size = old_size;
 		  }
 		  return r;
 		}
@@ -1297,9 +1302,10 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 	while( dir_pos + OSPFS_DIRENTRY_SIZE <= dir_size )
 	{
 		// check if this direntry's free
-		if( direntry->od_ino == 0 )
-			break ;
-
+	        if( direntry->od_ino == 0 ){
+		  eprintk("gothere\n");
+		  break ;
+		}
 		// update file pos
 		dir_pos += OSPFS_DIRENTRY_SIZE ;
 		block_offset += OSPFS_DIRENTRY_SIZE ;
