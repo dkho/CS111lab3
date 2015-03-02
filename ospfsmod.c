@@ -1175,6 +1175,8 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	ospfs_inode_t *oi = ospfs_inode(filp->f_dentry->d_inode->i_ino);
 	int retval = 0;
 	size_t amount = 0;
+	char canaryA ; // we're gonna check if their pointer's valid before we resize
+	char canaryB ; // and the end of their "buffer", we don't trust them
 
 	// Support files opened with the O_APPEND flag.  To detect O_APPEND,
 	// use struct file's f_flags field and the O_APPEND bit.
@@ -1185,6 +1187,12 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 	// If the user is writing past the end of the file, change the file's
 	// size to accomodate the request.  (Use change_size().)
 	/* EXERCISE: Your code here */
+
+	// check the user's buffer
+	if( ( copy_from_user( &canaryA, buffer, 1 ) > 0 ) 
+		|| ( copy_from_user( &canaryB, buffer + count - 1, 1 ) > 0 ) )
+		return -EFAULT ;
+
 	if( *f_pos + count > oi->oi_size )
 	{
 		retval = change_size( oi, *f_pos + count ) ;
@@ -1221,7 +1229,17 @@ ospfs_write(struct file *filp, const char __user *buffer, size_t count, loff_t *
 
 		n = ( ltw < OSPFS_BLKSIZE - block_offset )? ltw : OSPFS_BLKSIZE - block_offset ;
 		if( copy_from_user( data, buffer, n ) > 0 ) 
-			return -EFAULT ; // should never get called cause we're writing
+		{
+			// this shouldn't happen unless user is being really sneaky or really stupid
+			// ie the beginning and end of their buffer is valid, but somthing in between isn't
+			
+			// downsize
+			change_size( oi, *f_pos - count ) ;
+			oi->oi_size -= count ;
+			
+			// retval of change_size shouldn't be -EIO, unless inode's corrupted, I think
+			return -EFAULT ;
+		}
 
 
 		buffer += n;
@@ -1634,9 +1652,45 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 	ospfs_symlink_inode_t *oi =
 		(ospfs_symlink_inode_t *) ospfs_inode(dentry->d_inode->i_ino);
 	// Exercise: Your code here.
+	size_t startpos = 5 ; // first char after '?'
+	size_t midpos = 5 ; // first char after ':'
+	size_t endpos = 5 ; // one after last character index
+	size_t len = strlen( oi->oi_symlink ) ;
+	char name[len] ;
+
 	eprintk("\ncalled follow link!\n") ;
 
-	nd_set_link(nd, oi->oi_symlink);
+	while( endpos < len )
+	{
+		// grab the position of the first char after ':'
+		if( oi->oi_symlink[endpos] == ':' )
+			midpos = endpos + 1 ;
+		
+		endpos ++ ;
+	}
+
+	// if valid syntax for conditional symlink test condition and respond
+	// otherwise, just treat the whole thing as a regular symlink
+	// 	[0:4] for "root?", [startpos:midpos-2] for 1st thing, 
+	// 	[midpos-1] for ":" [midpos:endpos-1] for 2nd thing
+	if ( ( startpos < midpos - 1 ) && ( midpos < endpos ) )
+	{
+		if( current->uid == 0 ) // user is root
+		{
+			strncpy( name, &oi->oi_symlink[startpos], midpos - 1 - startpos ) ;
+			name[ midpos - startpos ] = '\0' ;
+			nd_set_link( nd, name ) ;
+		}
+		else
+		{
+			strncpy( name, &oi->oi_symlink[midpos], endpos - midpos ) ;
+			name[ endpos - midpos + 1 ] = '\0' ;
+			nd_set_link( nd, name ) ;
+		}
+	}
+	else
+		nd_set_link(nd, oi->oi_symlink);
+
 	return (void *) 0;
 }
 
