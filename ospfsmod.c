@@ -786,22 +786,23 @@ add_block(ospfs_inode_t *oi)
 	    if(allocated[0] != 0){ //if allocated new indir2 block
 	      free_block(allocated[0]); //free the block
 	      oi->oi_indirect2 = 0; //reset the pointer
+	    }
 	      return -ENOSPC;
-	    }
-	    
-	    if(indir2_new != 0) //if no indir2 block needed allocate to indirect pointer
-	      oi->oi_indirect = allocated[1]; 
-	    else{ //otherwise follow the  indir2 block and allocate the indir into correct place
-	      if(oi->oi_indirect2 == 0)
-		  {
-		  	eprintk( "A: indir: %i indir_new: %i\n", indir, indir_new ) ;
-		    return -EIO;
-		  }
-	      data = (uint32_t*) ospfs_block(oi->oi_indirect2);
-	      data[indir_new] = allocated[1];
-	    }
 	  }
-
+	  
+	  if(indir2_new != 0) //if no indir2 block needed allocate to indirect pointer
+	    oi->oi_indirect = allocated[1]; 
+	  else{ //otherwise follow the  indir2 block and allocate the indir into correct place
+	    if(oi->oi_indirect2 == 0)
+	      {
+		eprintk( "A: indir: %i indir_new: %i\n", indir, indir_new ) ;
+		return -EIO;
+	      }
+	    data = (uint32_t*) ospfs_block(oi->oi_indirect2);
+	    data[indir_new] = allocated[1];
+	  }
+	  
+	  
 	  //zero out block
 	  data = (uint32_t*) ospfs_block(allocated[1]);
 	  for( i = 0; i < 256; i ++)
@@ -845,6 +846,7 @@ add_block(ospfs_inode_t *oi)
 	} else if(indir_new == 0){
 	  if(oi->oi_indirect == 0)
 	  {
+	    eprintk("!!\n");
 	    return -EIO;
 	  }
 	  data = (uint32_t*) ospfs_block(oi->oi_indirect);
@@ -897,14 +899,20 @@ remove_block(ospfs_inode_t *oi)
 	int32_t dir = direct_index(n);
 	//NOTE EIO occurs when we should have an ind/ind2 but there isn't one
 	if(ind2 != -1){
-	  if(oi->oi_indirect2 ==0)
+	  if(oi->oi_indirect2 ==0){
+	    eprintk("rmblock1\n");
 	    return -EIO;
+	  }
 	  data = (uint32_t*) ospfs_block(oi->oi_indirect2);
-	  if(data[ind] == 0)
+	  if(data[ind] == 0){
+	    eprintk("rmblock2\n");
 	    return -EIO;
+	  }
 	  data = (uint32_t*) ospfs_block(data[ind]);
-	  if(data[dir] == 0)
+	  if(data[dir] == 0){
+	    eprintk("rmblock3\n");
 	    return -EIO;
+	  }
 	  free_block(data[dir]);
 	  
 	  data[dir] = 0;
@@ -920,11 +928,15 @@ remove_block(ospfs_inode_t *oi)
 	  }
 	}
 	else if (ind != -1){
-	  if(oi->oi_indirect == 0)
+	  if(oi->oi_indirect == 0){
+	    eprintk("rmblock4\n");
 	    return -EIO;
+	  }
 	  data = ospfs_block(oi->oi_indirect);
-	  if(data[dir] == 0)
+	  if(data[dir] == 0){
+	    eprintk("rmblock4\n");
 	    return -EIO;
+	  }
 	  free_block(data[dir]);
 
 	  data[dir] = 0;
@@ -934,8 +946,10 @@ remove_block(ospfs_inode_t *oi)
 	  }
 	}
 	else {
-	  if(oi->oi_direct[dir] == 0)
+	  if(oi->oi_direct[dir] == 0){
+	    eprintk("rmblock5\n");
 	    return -EIO;
+	  }
 	  free_block(oi->oi_direct[dir]);
 	  oi->oi_direct[dir] = 0;
 	}
