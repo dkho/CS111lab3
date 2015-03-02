@@ -629,7 +629,7 @@ free_block(uint32_t blockno)
 	/* EXERCISE: Your code here */
         if(blockno < ospfs_super->os_firstinob) return;
 	bitvector_set(ospfs_block(2) , blockno);
-	eprintk("freeblock\n");
+	//eprintk("freeblock\n");
 	return;
 }
 
@@ -785,7 +785,7 @@ add_block(ospfs_inode_t *oi)
 	    return -ENOSPC;
 	  oi->oi_indirect2 = allocated[0];
 	  data = (uint32_t*) ospfs_block(allocated[0]);
-	  eprintk("indir2alloc\n");
+	  // eprintk("indir2alloc\n");
 	  for(i = 0; i < 256; i++)
 	    data[i] = 0; //zero out the new block
 	}
@@ -802,7 +802,7 @@ add_block(ospfs_inode_t *oi)
 	  }
 	  
 	  if(indir2_new != 0){ //if no indir2 block needed allocate to indirect pointer
-	    eprintk("Tick!\n");
+	    //eprintk("Tick!\n");
 	    oi->oi_indirect = allocated[1]; 
 	  }
 	  else{ //otherwise follow the  indir2 block and allocate the indir into correct place
@@ -813,7 +813,7 @@ add_block(ospfs_inode_t *oi)
 	      }
 	    data = (uint32_t*) ospfs_block(oi->oi_indirect2);
 	    data[indir_new] = allocated[1];
-	    eprintk("%d\n", data[indir_new]);
+	    //eprintk("%d\n", data[indir_new]);
 	  }
 	  
 	  //zero out block
@@ -1014,7 +1014,7 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 {
 	uint32_t old_size = oi->oi_size;
 	int r = 0;
-	eprintk("changesize\n");
+	//eprintk("changesize\n");
 
 	while (ospfs_size2nblocks(oi->oi_size) < ospfs_size2nblocks(new_size)) {
 	        /* EXERCISE: Your code here */
@@ -1022,7 +1022,8 @@ change_size(ospfs_inode_t *oi, uint32_t new_size)
 		if(r < 0){
 		  if(r == -ENOSPC){
 		    while(ospfs_size2nblocks(oi->oi_size) > ospfs_size2nblocks(old_size)){
-		      remove_block(oi);
+		      if(remove_block(oi) < 0)
+			return -EIO;
 		    }
 		    oi->oi_size = old_size;
 		  }
@@ -1325,7 +1326,7 @@ create_blank_direntry(ospfs_inode_t *dir_oi)
 	{
 		// check if this direntry's free
 	        if( direntry->od_ino == 0 ){
-		  eprintk("gothere\n");
+		  //eprintk("gothere\n");
 		  break ;
 		}
 		// update file pos
@@ -1648,6 +1649,7 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 	ospfs_symlink_inode_t *oi =
 		(ospfs_symlink_inode_t *) ospfs_inode(dentry->d_inode->i_ino);
 	// Exercise: Your code here.
+	//eprintk("\ncalled follow link!\n") ;
 	size_t startpos = 5 ; // first char after '?'
 	size_t midpos = 5 ; // first char after ':'
 	size_t endpos = 5 ; // one after last character index
