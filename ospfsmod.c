@@ -484,7 +484,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		/* EXERCISE: Your code here */
 
 		// pretty sure direntries should all fit within block, cause they're 128 and block's 1024
-		dir_offset = ( f_pos -2 ) * OSPFS_DIRENTRY_SIZE ;
+		dir_offset = ( f_pos - 2 ) * OSPFS_DIRENTRY_SIZE ;
 		od = (ospfs_direntry_t*) ospfs_inode_data( dir_oi, dir_offset )  ;	 
 
 		if( od->od_ino != 0 )
@@ -506,7 +506,7 @@ ospfs_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 				eprintk( "Error in ospfs_dir_readdir! impropper file type\n" ) ;
 				dtype = 0 ; // silence warnings
 			}
-			ok_so_far = filldir( dirent, od->od_name, strlen(od->od_name), f_pos -2, 
+			ok_so_far = filldir( dirent, od->od_name, strlen(od->od_name), f_pos , 
 											od->od_ino, dtype ) ;	
 		}
 
@@ -1557,7 +1557,7 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 	
 	new_oi = ospfs_inode( entry_ino ) ; 
 
-	max_ino =  ospfs_super->os_ninodes ;
+	max_ino =  ospfs_super->os_ninodes ; // always >= 1?
 	
 	while( entry_ino < max_ino ) 
 	{
@@ -1569,7 +1569,7 @@ ospfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 		entry_ino ++ ;
 	}
 	if( entry_ino >=  max_ino )
-		return -ENOSPC ; // not really, we ran out of inodes TODO: check for better retval
+		return -ENOSPC ; 
 
 	// set symlink metadata
 	new_oi->oi_size = symlink_len ;
@@ -1613,7 +1613,7 @@ ospfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 	ospfs_symlink_inode_t *oi =
 		(ospfs_symlink_inode_t *) ospfs_inode(dentry->d_inode->i_ino);
 	// Exercise: Your code here.
-	eprintk("called follow link! but it's not done yet\n") ;
+	eprintk("\ncalled follow link!\n") ;
 
 	nd_set_link(nd, oi->oi_symlink);
 	return (void *) 0;
